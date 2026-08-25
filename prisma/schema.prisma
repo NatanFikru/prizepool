@@ -81,7 +81,7 @@ model Wallet {
   balance       Decimal       @default(0) @db.Decimal(12, 2)
   totalDeposits Decimal       @default(0) @db.Decimal(12, 2)
   totalWinnings Decimal       @default(0) @db.Decimal(12, 2)
-  currency      String        @default("USD") @db.VarChar(3)
+  currency      String        @default("ETB") @db.VarChar(3)
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions  Transaction[]
   createdAt     DateTime      @default(now())
@@ -90,26 +90,87 @@ model Wallet {
   @@index([currency])
 }
 
+model League {
+  id        String   @id @default(cuid())
+  apiId     Int      @unique
+  name      String
+  country   String?
+  logo      String?
+  seasons   Season[]
+  matches   Match[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@index([country])
+}
+
+model Season {
+  id        String   @id @default(cuid())
+  leagueId  String
+  year      Int
+  isCurrent Boolean  @default(false)
+  league    League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  matches   Match[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([leagueId, year])
+  @@index([year])
+  @@index([isCurrent])
+}
+
+model Team {
+  id          String   @id @default(cuid())
+  apiId       Int      @unique
+  name        String
+  country     String?
+  logo        String?
+  venueName   String?
+  venueCity   String?
+  homeMatches Match[]  @relation("HomeTeamMatches")
+  awayMatches Match[]  @relation("AwayTeamMatches")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([name])
+  @@index([country])
+}
+
 model Match {
   id              String             @id @default(cuid())
-  externalId      String?            @unique
-  homeTeam        String
-  awayTeam        String
+  apiFixtureId    Int?               @unique
+  leagueId        String
+  seasonId        String
+  homeTeamId      String
+  awayTeamId      String
   startsAt        DateTime
+  venueName       String?
+  venueCity       String?
   status          MatchStatus        @default(SCHEDULED)
+  apiStatusShort  String?
+  apiStatusLong   String?
   homeScore       Int?
   awayScore       Int?
+  lastUpdated     DateTime?
   winningOutcome  PredictionOutcome?
   entryFee        Decimal            @default(0) @db.Decimal(12, 2)
   prizePoolAmount Decimal            @default(0) @db.Decimal(12, 2)
+  league          League             @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+  season          Season             @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  homeTeam        Team               @relation("HomeTeamMatches", fields: [homeTeamId], references: [id], onDelete: Restrict)
+  awayTeam        Team               @relation("AwayTeamMatches", fields: [awayTeamId], references: [id], onDelete: Restrict)
   predictions     Prediction[]
   transactions    Transaction[]
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
 
+  @@index([leagueId])
+  @@index([seasonId])
+  @@index([homeTeamId])
+  @@index([awayTeamId])
   @@index([startsAt])
   @@index([status])
-  @@index([homeTeam, awayTeam])
 }
 
 model Prediction {

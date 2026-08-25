@@ -208,3 +208,57 @@ export async function recordWalletTransaction(input: WalletTransactionInput) {
     };
   });
 }
+
+export async function recordVerifiedDeposit(input: {
+  userId: string;
+  amount: number | string | Prisma.Decimal;
+  reference: string;
+  description?: string;
+  metadata?: Prisma.InputJsonValue;
+}) {
+  try {
+    const result = await recordWalletTransaction({
+      userId: input.userId,
+      amount: input.amount,
+      type: TransactionType.DEPOSIT,
+      status: TransactionStatus.COMPLETED,
+      reference: input.reference,
+      description: input.description,
+      metadata: input.metadata,
+    });
+
+    return {
+      ...result,
+      duplicate: false,
+    };
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const existingTransaction = await prisma.transaction.findUnique({
+        where: { reference: input.reference },
+      });
+
+      if (
+        existingTransaction &&
+        existingTransaction.userId === input.userId &&
+        existingTransaction.type === TransactionType.DEPOSIT &&
+        existingTransaction.status === TransactionStatus.COMPLETED
+      ) {
+        const wallet = await prisma.wallet.findUnique({
+          where: { id: existingTransaction.walletId },
+        });
+
+        if (!wallet) {
+          throw new WalletNotFoundError();
+        }
+
+        return {
+          wallet: serializeWallet(wallet),
+          transaction: serializeTransaction(existingTransaction),
+          duplicate: true,
+        };
+      }
+    }
+
+    throw error;
+  }
+}
